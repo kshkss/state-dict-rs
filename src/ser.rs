@@ -286,7 +286,7 @@ impl<'a> ser::Serializer for &'a mut Serializer {
 
     // Maps are represented in JSON as `{ K: V, K: V, ... }`.
     fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap> {
-        Err(Error::Unsupported)
+        Ok(self)
     }
 
     // Structs look just like maps in JSON. In particular, JSON requires that we
@@ -441,25 +441,29 @@ impl<'a> ser::SerializeMap for &'a mut Serializer {
     // This can be done by using a different Serializer to serialize the key
     // (instead of `&mut **self`) and having that other serializer only
     // implement `serialize_str` and return an error on any other data type.
-    fn serialize_key<T>(&mut self, _key: &T) -> Result<()>
+    fn serialize_key<T>(&mut self, key: &T) -> Result<()>
     where
         T: ?Sized + Serialize,
     {
-        unimplemented!()
+        let key = key.serialize(StringExtractor)?;
+        self.push_key(&key);
+        Ok(())
     }
 
     // It doesn't make a difference whether the colon is printed at the end of
     // `serialize_key` or at the beginning of `serialize_value`. In this case
     // the code is a bit simpler having it here.
-    fn serialize_value<T>(&mut self, _value: &T) -> Result<()>
+    fn serialize_value<T>(&mut self, value: &T) -> Result<()>
     where
         T: ?Sized + Serialize,
     {
-        unimplemented!()
+        value.serialize(&mut **self)?;
+        self.pop();
+        Ok(())
     }
 
     fn end(self) -> Result<()> {
-        unimplemented!()
+        Ok(())
     }
 }
 
@@ -502,6 +506,168 @@ impl<'a> ser::SerializeStructVariant for &'a mut Serializer {
 
     fn end(self) -> Result<()> {
         Ok(())
+    }
+}
+
+struct StringExtractor;
+
+impl ser::Serializer for StringExtractor {
+    type Ok = String;
+    type Error = Error;
+    type SerializeSeq = ser::Impossible<String, Error>;
+    type SerializeTuple = ser::Impossible<String, Error>;
+    type SerializeTupleStruct = ser::Impossible<String, Error>;
+    type SerializeTupleVariant = ser::Impossible<String, Error>;
+    type SerializeMap = ser::Impossible<String, Error>;
+    type SerializeStruct = ser::Impossible<String, Error>;
+    type SerializeStructVariant = ser::Impossible<String, Error>;
+
+    fn serialize_bool(self, _v: bool) -> Result<String> {
+        Err(Error::KeyNotString)
+    }
+
+    fn serialize_i8(self, _v: i8) -> Result<String> {
+        Err(Error::KeyNotString)
+    }
+
+    fn serialize_i16(self, _v: i16) -> Result<String> {
+        Err(Error::KeyNotString)
+    }
+
+    fn serialize_i32(self, _v: i32) -> Result<String> {
+        Err(Error::KeyNotString)
+    }
+
+    fn serialize_i64(self, _v: i64) -> Result<String> {
+        Err(Error::KeyNotString)
+    }
+
+    fn serialize_u8(self, _v: u8) -> Result<String> {
+        Err(Error::KeyNotString)
+    }
+
+    fn serialize_u16(self, _v: u16) -> Result<String> {
+        Err(Error::KeyNotString)
+    }
+
+    fn serialize_u32(self, _v: u32) -> Result<String> {
+        Err(Error::KeyNotString)
+    }
+
+    fn serialize_u64(self, _v: u64) -> Result<String> {
+        Err(Error::KeyNotString)
+    }
+
+    fn serialize_f32(self, _v: f32) -> Result<String> {
+        Err(Error::KeyNotString)
+    }
+
+    fn serialize_f64(self, _v: f64) -> Result<String> {
+        Err(Error::KeyNotString)
+    }
+
+    fn serialize_char(self, _v: char) -> Result<String> {
+        Err(Error::KeyNotString)
+    }
+
+    fn serialize_str(self, value: &str) -> Result<String> {
+        Ok(value.to_string())
+    }
+
+    fn serialize_bytes(self, _value: &[u8]) -> Result<String> {
+        Err(Error::KeyNotString)
+    }
+
+    fn serialize_none(self) -> Result<String> {
+        Err(Error::KeyNotString)
+    }
+
+    fn serialize_some<T: ?Sized>(self, _value: &T) -> Result<String>
+    where
+        T: ser::Serialize,
+    {
+        Err(Error::KeyNotString)
+    }
+
+    fn serialize_unit(self) -> Result<String> {
+        Err(Error::KeyNotString)
+    }
+
+    fn serialize_unit_struct(self, _name: &'static str) -> Result<String> {
+        Err(Error::KeyNotString)
+    }
+
+    fn serialize_unit_variant(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        _variant: &'static str,
+    ) -> Result<String> {
+        Err(Error::KeyNotString)
+    }
+
+    fn serialize_newtype_struct<T: ?Sized>(self, _name: &'static str, value: &T) -> Result<String>
+    where
+        T: ser::Serialize,
+    {
+        value.serialize(self)
+    }
+
+    fn serialize_newtype_variant<T: ?Sized>(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        _variant: &'static str,
+        _value: &T,
+    ) -> Result<String>
+    where
+        T: ser::Serialize,
+    {
+        Err(Error::KeyNotString)
+    }
+
+    fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
+        Err(Error::KeyNotString)
+    }
+
+    fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple> {
+        Err(Error::KeyNotString)
+    }
+
+    fn serialize_tuple_struct(
+        self,
+        _name: &'static str,
+        _len: usize,
+    ) -> Result<Self::SerializeTupleStruct> {
+        Err(Error::KeyNotString)
+    }
+
+    fn serialize_tuple_variant(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        _variant: &'static str,
+        _len: usize,
+    ) -> Result<Self::SerializeTupleVariant> {
+        Err(Error::KeyNotString)
+    }
+
+    fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap> {
+        Err(Error::KeyNotString)
+    }
+
+    fn serialize_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeStruct> {
+        Err(Error::KeyNotString)
+    }
+
+    fn serialize_struct_variant(
+        self,
+        _name: &'static str,
+        _variant_index: u32,
+        _variant: &'static str,
+        _len: usize,
+    ) -> Result<Self::SerializeStructVariant> {
+        Err(Error::KeyNotString)
     }
 }
 
@@ -587,7 +753,10 @@ fn test_nested() {
         seq: vec![2., 3.],
     };
 
-    let u = Test2 { a: test_a.clone(), b: E::Unit};
+    let u = Test2 {
+        a: test_a.clone(),
+        b: E::Unit,
+    };
     let dict = to_hashmap(&u).unwrap();
     assert_eq!(dict.iter().count(), 4);
     assert_eq!(dict.get("$.a.int"), Some(&1.));
@@ -607,7 +776,10 @@ fn test_nested() {
     assert_eq!(dict.get("$.b"), Some(&1.));
     assert_eq!(dict.get("$.b[0]"), Some(&1.));
 
-    let t = Test2 { a: test_a.clone(), b: E::Tuple(1, 2)};
+    let t = Test2 {
+        a: test_a.clone(),
+        b: E::Tuple(1, 2),
+    };
     let dict = to_hashmap(&t).unwrap();
     assert_eq!(dict.iter().count(), 6);
     assert_eq!(dict.get("$.a.int"), Some(&1.));
@@ -617,7 +789,10 @@ fn test_nested() {
     assert_eq!(dict.get("$.b[0]"), Some(&1.));
     assert_eq!(dict.get("$.b[1]"), Some(&2.));
 
-    let s = Test2 { a: test_a.clone(), b: E::Struct{ a: 1} };
+    let s = Test2 {
+        a: test_a.clone(),
+        b: E::Struct { a: 1 },
+    };
     let dict = to_hashmap(&s).unwrap();
     assert_eq!(dict.iter().count(), 5);
     assert_eq!(dict.get("$.a.int"), Some(&1.));

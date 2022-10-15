@@ -7,6 +7,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
     #[error("something wrong")]
     Message(String),
+    #[error("A string is expected for map key")]
+    KeyNotString,
     #[error("Unsupported structure")]
     Unsupported,
     #[error("This is an internal error")]
