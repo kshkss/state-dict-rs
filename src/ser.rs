@@ -671,133 +671,138 @@ impl ser::Serializer for StringExtractor {
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////
+#[cfg(test)]
+mod test {
+    use super::*;
+    use serde::ser::Serializer;
 
-#[test]
-fn test_struct() {
-    #[derive(Serialize)]
-    struct Test {
-        int: u32,
-        seq: Vec<f32>,
+    #[test]
+    fn test_struct() {
+        #[derive(Serialize)]
+        struct Test {
+            int: u32,
+            seq: Vec<f32>,
+        }
+
+        let test = Test {
+            int: 1,
+            seq: vec![2., 3.],
+        };
+        let dict = to_hashmap(&test).unwrap();
+
+        assert_eq!(dict.get("$.int"), Some(&1.));
+        assert_eq!(dict.get("$.seq[0]"), Some(&2.));
+        assert_eq!(dict.get("$.seq[1]"), Some(&3.));
+        assert_eq!(dict.iter().count(), 3);
     }
 
-    let test = Test {
-        int: 1,
-        seq: vec![2., 3.],
-    };
-    let dict = to_hashmap(&test).unwrap();
+    #[test]
+    fn test_enum() {
+        #[derive(Serialize)]
+        enum E {
+            Unit,
+            Newtype(u32),
+            Tuple(u32, u32),
+            Struct { a: u32 },
+        }
 
-    assert_eq!(dict.get("$.int"), Some(&1.));
-    assert_eq!(dict.get("$.seq[0]"), Some(&2.));
-    assert_eq!(dict.get("$.seq[1]"), Some(&3.));
-    assert_eq!(dict.iter().count(), 3);
-}
+        let u = E::Unit;
+        let dict = to_hashmap(&u).unwrap();
+        assert_eq!(dict.iter().count(), 1);
+        assert_eq!(dict.get("$"), Some(&0.));
 
-#[test]
-fn test_enum() {
-    #[derive(Serialize)]
-    enum E {
-        Unit,
-        Newtype(u32),
-        Tuple(u32, u32),
-        Struct { a: u32 },
+        let n = E::Newtype(1);
+        let dict = to_hashmap(&n).unwrap();
+        assert_eq!(dict.iter().count(), 2);
+        assert_eq!(dict.get("$"), Some(&1.));
+        assert_eq!(dict.get("$[0]"), Some(&1.));
+
+        let t = E::Tuple(1, 2);
+        let dict = to_hashmap(&t).unwrap();
+        assert_eq!(dict.iter().count(), 3);
+        assert_eq!(dict.get("$"), Some(&2.));
+        assert_eq!(dict.get("$[0]"), Some(&1.));
+        assert_eq!(dict.get("$[1]"), Some(&2.));
+
+        let s = E::Struct { a: 1 };
+        let dict = to_hashmap(&s).unwrap();
+        assert_eq!(dict.iter().count(), 2);
+        assert_eq!(dict.get("$"), Some(&3.));
+        assert_eq!(dict.get("$.a"), Some(&1.));
     }
 
-    let u = E::Unit;
-    let dict = to_hashmap(&u).unwrap();
-    assert_eq!(dict.iter().count(), 1);
-    assert_eq!(dict.get("$"), Some(&0.));
+    #[test]
+    fn test_nested() {
+        #[derive(Serialize, Clone)]
+        struct Test {
+            int: u32,
+            seq: Vec<f32>,
+        }
+        #[derive(Serialize)]
+        enum E {
+            Unit,
+            Newtype(u32),
+            Tuple(u32, u32),
+            Struct { a: u32 },
+        }
+        #[derive(Serialize)]
+        struct Test2 {
+            a: Test,
+            b: E,
+        }
 
-    let n = E::Newtype(1);
-    let dict = to_hashmap(&n).unwrap();
-    assert_eq!(dict.iter().count(), 2);
-    assert_eq!(dict.get("$"), Some(&1.));
-    assert_eq!(dict.get("$[0]"), Some(&1.));
+        let test_a = Test {
+            int: 1,
+            seq: vec![2., 3.],
+        };
 
-    let t = E::Tuple(1, 2);
-    let dict = to_hashmap(&t).unwrap();
-    assert_eq!(dict.iter().count(), 3);
-    assert_eq!(dict.get("$"), Some(&2.));
-    assert_eq!(dict.get("$[0]"), Some(&1.));
-    assert_eq!(dict.get("$[1]"), Some(&2.));
+        let u = Test2 {
+            a: test_a.clone(),
+            b: E::Unit,
+        };
+        let dict = to_hashmap(&u).unwrap();
+        assert_eq!(dict.iter().count(), 4);
+        assert_eq!(dict.get("$.a.int"), Some(&1.));
+        assert_eq!(dict.get("$.a.seq[0]"), Some(&2.));
+        assert_eq!(dict.get("$.a.seq[1]"), Some(&3.));
+        assert_eq!(dict.get("$.b"), Some(&0.));
 
-    let s = E::Struct { a: 1 };
-    let dict = to_hashmap(&s).unwrap();
-    assert_eq!(dict.iter().count(), 2);
-    assert_eq!(dict.get("$"), Some(&3.));
-    assert_eq!(dict.get("$.a"), Some(&1.));
-}
+        let n = Test2 {
+            a: test_a.clone(),
+            b: E::Newtype(1),
+        };
+        let dict = to_hashmap(&n).unwrap();
+        assert_eq!(dict.iter().count(), 5);
+        assert_eq!(dict.get("$.a.int"), Some(&1.));
+        assert_eq!(dict.get("$.a.seq[0]"), Some(&2.));
+        assert_eq!(dict.get("$.a.seq[1]"), Some(&3.));
+        assert_eq!(dict.get("$.b"), Some(&1.));
+        assert_eq!(dict.get("$.b[0]"), Some(&1.));
 
-#[test]
-fn test_nested() {
-    #[derive(Serialize, Clone)]
-    struct Test {
-        int: u32,
-        seq: Vec<f32>,
+        let t = Test2 {
+            a: test_a.clone(),
+            b: E::Tuple(1, 2),
+        };
+        let dict = to_hashmap(&t).unwrap();
+        assert_eq!(dict.iter().count(), 6);
+        assert_eq!(dict.get("$.a.int"), Some(&1.));
+        assert_eq!(dict.get("$.a.seq[0]"), Some(&2.));
+        assert_eq!(dict.get("$.a.seq[1]"), Some(&3.));
+        assert_eq!(dict.get("$.b"), Some(&2.));
+        assert_eq!(dict.get("$.b[0]"), Some(&1.));
+        assert_eq!(dict.get("$.b[1]"), Some(&2.));
+
+        let s = Test2 {
+            a: test_a.clone(),
+            b: E::Struct { a: 1 },
+        };
+        let dict = to_hashmap(&s).unwrap();
+        assert_eq!(dict.iter().count(), 5);
+        assert_eq!(dict.get("$.a.int"), Some(&1.));
+        assert_eq!(dict.get("$.a.seq[0]"), Some(&2.));
+        assert_eq!(dict.get("$.a.seq[1]"), Some(&3.));
+        assert_eq!(dict.get("$.b"), Some(&3.));
+        assert_eq!(dict.get("$.b.a"), Some(&1.));
     }
-    #[derive(Serialize)]
-    enum E {
-        Unit,
-        Newtype(u32),
-        Tuple(u32, u32),
-        Struct { a: u32 },
-    }
-    #[derive(Serialize)]
-    struct Test2 {
-        a: Test,
-        b: E,
-    }
 
-    let test_a = Test {
-        int: 1,
-        seq: vec![2., 3.],
-    };
-
-    let u = Test2 {
-        a: test_a.clone(),
-        b: E::Unit,
-    };
-    let dict = to_hashmap(&u).unwrap();
-    assert_eq!(dict.iter().count(), 4);
-    assert_eq!(dict.get("$.a.int"), Some(&1.));
-    assert_eq!(dict.get("$.a.seq[0]"), Some(&2.));
-    assert_eq!(dict.get("$.a.seq[1]"), Some(&3.));
-    assert_eq!(dict.get("$.b"), Some(&0.));
-
-    let n = Test2 {
-        a: test_a.clone(),
-        b: E::Newtype(1),
-    };
-    let dict = to_hashmap(&n).unwrap();
-    assert_eq!(dict.iter().count(), 5);
-    assert_eq!(dict.get("$.a.int"), Some(&1.));
-    assert_eq!(dict.get("$.a.seq[0]"), Some(&2.));
-    assert_eq!(dict.get("$.a.seq[1]"), Some(&3.));
-    assert_eq!(dict.get("$.b"), Some(&1.));
-    assert_eq!(dict.get("$.b[0]"), Some(&1.));
-
-    let t = Test2 {
-        a: test_a.clone(),
-        b: E::Tuple(1, 2),
-    };
-    let dict = to_hashmap(&t).unwrap();
-    assert_eq!(dict.iter().count(), 6);
-    assert_eq!(dict.get("$.a.int"), Some(&1.));
-    assert_eq!(dict.get("$.a.seq[0]"), Some(&2.));
-    assert_eq!(dict.get("$.a.seq[1]"), Some(&3.));
-    assert_eq!(dict.get("$.b"), Some(&2.));
-    assert_eq!(dict.get("$.b[0]"), Some(&1.));
-    assert_eq!(dict.get("$.b[1]"), Some(&2.));
-
-    let s = Test2 {
-        a: test_a.clone(),
-        b: E::Struct { a: 1 },
-    };
-    let dict = to_hashmap(&s).unwrap();
-    assert_eq!(dict.iter().count(), 5);
-    assert_eq!(dict.get("$.a.int"), Some(&1.));
-    assert_eq!(dict.get("$.a.seq[0]"), Some(&2.));
-    assert_eq!(dict.get("$.a.seq[1]"), Some(&3.));
-    assert_eq!(dict.get("$.b"), Some(&3.));
-    assert_eq!(dict.get("$.b.a"), Some(&1.));
 }
