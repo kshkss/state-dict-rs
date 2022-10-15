@@ -10,6 +10,44 @@ pub struct Serializer {
     output: HashMap<String, f64>,
 }
 
+impl Serializer {
+    fn new(root: String) -> Self {
+        Self {
+            counter: 0,
+            pos: vec![root],
+            output: HashMap::new(),
+        }
+    }
+
+    fn is_root(&self) -> bool {
+        self.pos.len() == 0
+    }
+
+    fn push_key(&mut self, key: &str) {
+        let len = self.pos.len();
+        let new_pos = if len == 0 {
+            key.to_string()
+        } else {
+            self.pos[len - 1].to_owned() + "." + key
+        };
+        self.pos.push(new_pos);
+    }
+
+    fn push_index(&mut self, i: i32) {
+        let len = self.pos.len();
+        let new_pos = if len == 0 {
+            format!("[{}]", i)
+        } else {
+            self.pos[len - 1].to_owned() + &format!("[{}]", i)
+        };
+        self.pos.push(new_pos);
+    }
+
+    fn pop(&mut self) {
+        self.pos.pop();
+    }
+}
+
 // By convention, the public API of a Serde serializer is one or more `to_abc`
 // functions such as `to_string`, `to_bytes`, or `to_writer` depending on what
 // Rust types the serializer is able to produce as output.
@@ -19,11 +57,7 @@ pub fn to_hashmap<T>(value: &T) -> Result<HashMap<String, f64>>
 where
     T: Serialize,
 {
-    let mut serializer = Serializer {
-        counter: 0,
-        pos: Vec::new(),
-        output: HashMap::new(),
-    };
+    let mut serializer = Serializer::new("$".to_string());
     value.serialize(&mut serializer)?;
     Ok(serializer.output)
 }
@@ -200,15 +234,9 @@ impl<'a> ser::Serializer for &'a mut Serializer {
         T: ?Sized + Serialize,
     {
         self.serialize_u32(variant_index)?;
-        let len = self.pos.len();
-        let new_pos = if len == 0 {
-            "_[0]".to_string()
-        } else {
-            self.pos[len - 1].to_owned() + "[0]"
-        };
-        self.pos.push(new_pos);
+        self.push_index(0);
         value.serialize(&mut *self)?;
-        self.pos.pop();
+        self.pop();
         Ok(())
     }
 
@@ -279,6 +307,9 @@ impl<'a> ser::Serializer for &'a mut Serializer {
         _variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeStructVariant> {
+        if self.is_root() {
+            self.push_key("_");
+        }
         self.serialize_u32(variant_index)?;
         Ok(self)
     }
@@ -302,16 +333,10 @@ impl<'a> ser::SerializeSeq for &'a mut Serializer {
     where
         T: ?Sized + Serialize,
     {
-        let len = self.pos.len();
-        let new_pos = if len == 0 {
-            "_[".to_string() + &format!("{}", self.counter) + "]"
-        } else {
-            self.pos[len - 1].to_owned() + "[" + &format!("{}", self.counter) + "]"
-        };
+        self.push_index(self.counter as i32);
         self.counter += 1;
-        self.pos.push(new_pos);
         value.serialize(&mut **self)?;
-        self.pos.pop();
+        self.pop();
         Ok(())
     }
 
@@ -331,16 +356,10 @@ impl<'a> ser::SerializeTuple for &'a mut Serializer {
     where
         T: ?Sized + Serialize,
     {
-        let len = self.pos.len();
-        let new_pos = if len == 0 {
-            "_[".to_string() + &format!("{}", self.counter) + "]"
-        } else {
-            self.pos[len - 1].to_owned() + "[" + &format!("{}", self.counter) + "]"
-        };
+        self.push_index(self.counter as i32);
         self.counter += 1;
-        self.pos.push(new_pos);
         value.serialize(&mut **self)?;
-        self.pos.pop();
+        self.pop();
         Ok(())
     }
 
@@ -359,16 +378,10 @@ impl<'a> ser::SerializeTupleStruct for &'a mut Serializer {
     where
         T: ?Sized + Serialize,
     {
-        let len = self.pos.len();
-        let new_pos = if len == 0 {
-            "_[".to_string() + &format!("{}", self.counter) + "]"
-        } else {
-            self.pos[len - 1].to_owned() + "[" + &format!("{}", self.counter) + "]"
-        };
+        self.push_index(self.counter as i32);
         self.counter += 1;
-        self.pos.push(new_pos);
         value.serialize(&mut **self)?;
-        self.pos.pop();
+        self.pop();
         Ok(())
     }
 
@@ -395,16 +408,10 @@ impl<'a> ser::SerializeTupleVariant for &'a mut Serializer {
     where
         T: ?Sized + Serialize,
     {
-        let len = self.pos.len();
-        let new_pos = if len == 0 {
-            "_[".to_string() + &format!("{}", self.counter) + "]"
-        } else {
-            self.pos[len - 1].to_owned() + "[" + &format!("{}", self.counter) + "]"
-        };
+        self.push_index(self.counter as i32);
         self.counter += 1;
-        self.pos.push(new_pos);
         value.serialize(&mut **self)?;
-        self.pos.pop();
+        self.pop();
         Ok(())
     }
 
@@ -466,15 +473,9 @@ impl<'a> ser::SerializeStruct for &'a mut Serializer {
     where
         T: ?Sized + Serialize,
     {
-        let len = self.pos.len();
-        let new_pos = if len == 0 {
-            key.to_string()
-        } else {
-            self.pos[len - 1].to_owned() + "." + key
-        };
-        self.pos.push(new_pos);
+        self.push_key(key);
         value.serialize(&mut **self)?;
-        self.pos.pop();
+        self.pop();
         Ok(())
     }
 
@@ -493,15 +494,9 @@ impl<'a> ser::SerializeStructVariant for &'a mut Serializer {
     where
         T: ?Sized + Serialize,
     {
-        let len = self.pos.len();
-        let new_pos = if len == 0 {
-            "_.".to_string() + key
-        } else {
-            self.pos[len - 1].to_owned() + "." + key
-        };
-        self.pos.push(new_pos);
+        self.push_key(key);
         value.serialize(&mut **self)?;
-        self.pos.pop();
+        self.pop();
         Ok(())
     }
 
@@ -526,9 +521,9 @@ fn test_struct() {
     };
     let dict = to_hashmap(&test).unwrap();
 
-    assert_eq!(dict.get("int"), Some(&1.));
-    assert_eq!(dict.get("seq[0]"), Some(&2.));
-    assert_eq!(dict.get("seq[1]"), Some(&3.));
+    assert_eq!(dict.get("$.int"), Some(&1.));
+    assert_eq!(dict.get("$.seq[0]"), Some(&2.));
+    assert_eq!(dict.get("$.seq[1]"), Some(&3.));
     assert_eq!(dict.iter().count(), 3);
 }
 
@@ -545,26 +540,26 @@ fn test_enum() {
     let u = E::Unit;
     let dict = to_hashmap(&u).unwrap();
     assert_eq!(dict.iter().count(), 1);
-    assert_eq!(dict.get("_"), Some(&0.));
+    assert_eq!(dict.get("$"), Some(&0.));
 
     let n = E::Newtype(1);
     let dict = to_hashmap(&n).unwrap();
     assert_eq!(dict.iter().count(), 2);
-    assert_eq!(dict.get("_"), Some(&1.));
-    assert_eq!(dict.get("_[0]"), Some(&1.));
+    assert_eq!(dict.get("$"), Some(&1.));
+    assert_eq!(dict.get("$[0]"), Some(&1.));
 
     let t = E::Tuple(1, 2);
     let dict = to_hashmap(&t).unwrap();
     assert_eq!(dict.iter().count(), 3);
-    assert_eq!(dict.get("_"), Some(&2.));
-    assert_eq!(dict.get("_[0]"), Some(&1.));
-    assert_eq!(dict.get("_[1]"), Some(&2.));
+    assert_eq!(dict.get("$"), Some(&2.));
+    assert_eq!(dict.get("$[0]"), Some(&1.));
+    assert_eq!(dict.get("$[1]"), Some(&2.));
 
     let s = E::Struct { a: 1 };
     let dict = to_hashmap(&s).unwrap();
     assert_eq!(dict.iter().count(), 2);
-    assert_eq!(dict.get("_"), Some(&3.));
-    assert_eq!(dict.get("_.a"), Some(&1.));
+    assert_eq!(dict.get("$"), Some(&3.));
+    assert_eq!(dict.get("$.a"), Some(&1.));
 }
 
 #[test]
@@ -595,36 +590,39 @@ fn test_nested() {
     let u = Test2 { a: test_a.clone(), b: E::Unit};
     let dict = to_hashmap(&u).unwrap();
     assert_eq!(dict.iter().count(), 4);
-    assert_eq!(dict.get("a.int"), Some(&1.));
-    assert_eq!(dict.get("a.seq[0]"), Some(&2.));
-    assert_eq!(dict.get("a.seq[1]"), Some(&3.));
-    assert_eq!(dict.get("b"), Some(&0.));
+    assert_eq!(dict.get("$.a.int"), Some(&1.));
+    assert_eq!(dict.get("$.a.seq[0]"), Some(&2.));
+    assert_eq!(dict.get("$.a.seq[1]"), Some(&3.));
+    assert_eq!(dict.get("$.b"), Some(&0.));
 
-    let n = Test2 { a: test_a.clone(), b: E::Newtype(1)};
+    let n = Test2 {
+        a: test_a.clone(),
+        b: E::Newtype(1),
+    };
     let dict = to_hashmap(&n).unwrap();
     assert_eq!(dict.iter().count(), 5);
-    assert_eq!(dict.get("a.int"), Some(&1.));
-    assert_eq!(dict.get("a.seq[0]"), Some(&2.));
-    assert_eq!(dict.get("a.seq[1]"), Some(&3.));
-    assert_eq!(dict.get("b"), Some(&1.));
-    assert_eq!(dict.get("b[0]"), Some(&1.));
+    assert_eq!(dict.get("$.a.int"), Some(&1.));
+    assert_eq!(dict.get("$.a.seq[0]"), Some(&2.));
+    assert_eq!(dict.get("$.a.seq[1]"), Some(&3.));
+    assert_eq!(dict.get("$.b"), Some(&1.));
+    assert_eq!(dict.get("$.b[0]"), Some(&1.));
 
     let t = Test2 { a: test_a.clone(), b: E::Tuple(1, 2)};
     let dict = to_hashmap(&t).unwrap();
     assert_eq!(dict.iter().count(), 6);
-    assert_eq!(dict.get("a.int"), Some(&1.));
-    assert_eq!(dict.get("a.seq[0]"), Some(&2.));
-    assert_eq!(dict.get("a.seq[1]"), Some(&3.));
-    assert_eq!(dict.get("b"), Some(&2.));
-    assert_eq!(dict.get("b[0]"), Some(&1.));
-    assert_eq!(dict.get("b[1]"), Some(&2.));
+    assert_eq!(dict.get("$.a.int"), Some(&1.));
+    assert_eq!(dict.get("$.a.seq[0]"), Some(&2.));
+    assert_eq!(dict.get("$.a.seq[1]"), Some(&3.));
+    assert_eq!(dict.get("$.b"), Some(&2.));
+    assert_eq!(dict.get("$.b[0]"), Some(&1.));
+    assert_eq!(dict.get("$.b[1]"), Some(&2.));
 
     let s = Test2 { a: test_a.clone(), b: E::Struct{ a: 1} };
     let dict = to_hashmap(&s).unwrap();
     assert_eq!(dict.iter().count(), 5);
-    assert_eq!(dict.get("a.int"), Some(&1.));
-    assert_eq!(dict.get("a.seq[0]"), Some(&2.));
-    assert_eq!(dict.get("a.seq[1]"), Some(&3.));
-    assert_eq!(dict.get("b"), Some(&3.));
-    assert_eq!(dict.get("b.a"), Some(&1.));
+    assert_eq!(dict.get("$.a.int"), Some(&1.));
+    assert_eq!(dict.get("$.a.seq[0]"), Some(&2.));
+    assert_eq!(dict.get("$.a.seq[1]"), Some(&3.));
+    assert_eq!(dict.get("$.b"), Some(&3.));
+    assert_eq!(dict.get("$.b.a"), Some(&1.));
 }
