@@ -313,6 +313,14 @@ impl<'a> ser::Serializer for &'a mut Serializer {
         self.serialize_u32(variant_index)?;
         Ok(self)
     }
+
+    fn is_human_readable(&self) -> bool {
+        if cfg!(feature = "human-readable") {
+            true
+        } else {
+            false
+        }
+    }
 }
 
 // The following 7 impls deal with the serialization of compound types like
