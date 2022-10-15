@@ -805,4 +805,17 @@ mod test {
         assert_eq!(dict.get("$.b.a"), Some(&1.));
     }
 
+    #[test]
+    #[cfg(feature = "human-readable")]
+    fn test_human_readable() {
+        let mut ser = super::Serializer::new("$".to_string());
+        assert!((&mut ser).is_human_readable())
+    }
+
+    #[test]
+    #[cfg(not(feature = "human-readable"))]
+    fn test_not_human_readable() {
+        let mut ser = super::Serializer::new("$".to_string());
+        assert!(!(&mut ser).is_human_readable())
+    }
 }
