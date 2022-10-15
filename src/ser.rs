@@ -46,6 +46,12 @@ impl Serializer {
     fn pop(&mut self) {
         self.pos.pop();
     }
+
+    fn insert(&mut self, value: f64) {
+        assert_ne!(self.pos.len(), 0);
+        self.output
+            .insert(self.pos[self.pos.len() - 1].to_owned(), value);
+    }
 }
 
 // By convention, the public API of a Serde serializer is one or more `to_abc`
@@ -136,14 +142,8 @@ impl<'a> ser::Serializer for &'a mut Serializer {
     }
 
     fn serialize_f64(self, v: f64) -> Result<()> {
-        let len = self.pos.len();
-        if len == 0 {
-            self.output.insert("_".to_string(), v);
-            Ok(())
-        } else {
-            self.output.insert(self.pos[len - 1].to_owned(), v);
-            Ok(())
-        }
+        self.insert(v);
+        Ok(())
     }
 
     // Serialize a char as a single-character string. Other formats may
